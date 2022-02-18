@@ -1,0 +1,79 @@
+pragma cashscript ^0.7.0;
+
+// Assurance smart contract which can have unlimited paricipants
+
+// The smart contract chains pledges and pays out the campaign when it reaches its funding goal.
+// If the campaign does not reach its goal before the timelock, the pledgers are refunded.
+// This happens by rolling back the contract one step at a time
+// each step repaying one pledger and sending the rest to the previous state of the contract
+// which contains the information to refund the previous pledger and so on. 
+
+// Opcode count: 85 (max 201)
+// Bytesize: 133 (max 520)
+
+contract assuranceContract(
+    // constant constructor parameters
+    int amountPayout,
+    int timelock,
+    bytes payoutBytecode, // either 25 bytes for P2PKH output or 23 bytes for P2SH
+
+    // constructor parameters of simulated state
+    // last because constructor parameters are added in reverse order
+    bytes20 hashRefundOutputs
+) {
+    function refund(
+        bytes refundOutputs // 64 bytes for P2PKH pledge refund and 62 bytes for P2SH pledge refund 
+    ) {
+        require(tx.time >= timelock);
+        require(hash160(refundOutputs)==hashRefundOutputs);
+
+        // previousContract always first output
+        // bytes62/64 = bytes31 refundOutput1 + bytes31/33 refundOutput2
+        bytes31 refundOutput1, bytes refundOutput2 = refundOutputs.split(31);
+        // bytes31 = bytes23 LockingBytecodeP2SH + bytes8 amount
+        bytes23 prevSmartContractLock, bytes8 prevSmartContractAmount = refundOutput1.split(23);
+        // refundPledgerLock either 23 or 25 bytes
+        // bytes31/33 = bytes23/25 LockingBytecodeP2PKH + bytes8 amount
+        bytes refundPledgerLock, bytes8 refundPledgerAmount = refundOutput2.split(-8);
+
+        require(tx.outputs[0].value == int(prevSmartContractAmount));
+        require(tx.outputs[0].lockingBytecode == prevSmartContractLock);
+
+        require(tx.outputs[1].value == int(refundPledgerAmount));
+        // refundPledgerLock can be either a P2PKH or P2SH lock
+        // It will be valid lockingcode bc it is copied from the pledge input and checked through the hash
+        require(tx.outputs[1].lockingBytecode == refundPledgerLock);
+    }
+    function pledge(
+    ) {
+        // require the campaign contract to be at index0
+        // allows for more than 2 inputs
+        require(this.activeInputIndex == 0);
+        // first refundOutput is for the previous state of the contract
+        bytes newRefundOutput1 = tx.inputs[0].lockingBytecode + bytes8(tx.inputs[0].value);
+        // pledge can have change output so pledge amount is difference in contract value before and after
+        int amountPledge = tx.outputs[0].value - tx.inputs[0].value;
+        // second refundOutput is for the pledge
+        // 600 sats are deducted from the pledge amount to be able to pay for the refund tx
+        bytes newRefundOutput2 = tx.inputs[1].lockingBytecode + bytes8(amountPledge - 600);
+        // arbitrary hashfunction, output only 20bytes <-> 32bytes
+        bytes hashNewRefundOutputs = hash160(newRefundOutput1+newRefundOutput2);
+        // add new simulated state parameter to the the bytecode with previous cut out
+        // constructor parameters are added in reverse order
+        // push 20 bytes, hashNewRefundOutputs = 21 bytes total
+        bytes newContract = 0x14 + hashNewRefundOutputs + this.activeBytecode.split(21)[1];
+        // pledge should be atleast 1200sats for fee+dust ouput chose 10k sats as DOS measure
+        // implicity requires tx.outputs[0].value > tx.inputs[0].value
+        require(amountPledge > 10000);
+        // require next state contract on output index zero
+        bytes23 newContractLock = new LockingBytecodeP2SH(hash160(newContract));
+        require(tx.outputs[0].lockingBytecode == newContractLock);
+        // allows for change output
+    }
+    function payout(
+    ) {
+        require(tx.outputs[0].value >= amountPayout);
+        // payout can either be to P2PKH or P2SH address
+        require(tx.outputs[0].lockingBytecode == payoutBytecode);
+    }
+}
