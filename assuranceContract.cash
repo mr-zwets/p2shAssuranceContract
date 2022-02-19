@@ -8,8 +8,8 @@ pragma cashscript ^0.7.0;
 // each step repaying one pledger and sending the rest to the previous state of the contract
 // which contains the information to refund the previous pledger and so on. 
 
-// Opcode count: 85 (max 201)
-// Bytesize: 133 (max 520)
+// Opcode count: 89 (max 201)
+// Bytesize: 138 (max 520)
 
 contract assuranceContract(
     // constant constructor parameters
@@ -34,7 +34,7 @@ contract assuranceContract(
         bytes23 prevSmartContractLock, bytes8 prevSmartContractAmount = refundOutput1.split(23);
         // refundPledgerLock either 23 or 25 bytes
         // bytes31/33 = bytes23/25 LockingBytecodeP2PKH + bytes8 amount
-        bytes refundPledgerLock, bytes8 refundPledgerAmount = refundOutput2.split(-8);
+        bytes refundPledgerLock, bytes8 refundPledgerAmount = refundOutput2.split(refundOutput2.length - 8);
 
         require(tx.outputs[0].value == int(prevSmartContractAmount));
         require(tx.outputs[0].lockingBytecode == prevSmartContractLock);
