@@ -8,8 +8,8 @@ pragma cashscript ^0.7.0;
 // each step repaying one pledger and sending the rest to the previous state of the contract
 // which contains the information to refund the previous pledger and so on. 
 
-// Opcode count: 91 (max 201)
-// Bytesize: 141 (max 520)
+// Opcode count: 97 (max 201)
+// Bytesize: 153 (max 520)
 
 contract assuranceContract(
     // constant constructor parameters
@@ -74,7 +74,12 @@ contract assuranceContract(
     function payout(
     ) {
         require(tx.time >= timelockPayout);
+        // require that atleast funding target is reached
         require(tx.outputs[0].value >= amountPayout);
+        // require the contract input to be on index 0 to read its value
+        require(this.activeInputIndex == 0);
+        // require payout value to be the contract value minus miner fee
+        require(tx.outputs[0].value == tx.inputs[0].value - 600);
         // payout can either be to P2PKH or P2SH address
         require(tx.outputs[0].lockingBytecode == payoutBytecode);
     }
