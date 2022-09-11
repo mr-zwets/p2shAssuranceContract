@@ -1,0 +1,90 @@
+// needs cashscript version with Cashtoken support
+pragma cashscript ^0.8.0;
+
+// Assurance smart contract which can have unlimited paricipants with option to cancel at any time
+// first input pledger should be p2pkh to allow for cancel at any time in cancelOrRefund.cash
+
+contract assuranceContract(
+    // constant constructor parameters
+    int fundraisingGoal,
+    bytes payoutBytecode, // either 25 bytes for P2PKH output or 23 bytes for P2SH
+    bytes cancelOrRefundLockingBytecode // locking bytecode of cancelOrRefund.cash
+) {
+    function payout(
+    ) {
+        // require that atleast fundraising goal is reached
+        require(tx.outputs[0].value >= fundraisingGoal);
+        // require the contract input to be on index 0 to read its value
+        require(this.activeInputIndex == 0);
+        // require payout value to be the contract value minus miner fee
+        require(tx.outputs[0].value == tx.inputs[0].value - 600);
+        // payout can either be to P2PKH or P2SH address
+        require(tx.outputs[0].lockingBytecode == payoutBytecode);
+    }
+    function pledge(
+    ) {
+        // require the campaign contract to be at index0
+        // allows for more than 2 inputs
+        require(this.activeInputIndex == 0);
+        
+        // pledge can have change output so pledge amount is difference in contract value before and after
+        int amountPledge = tx.outputs[0].value - tx.inputs[0].value;
+        
+        // pledge should be atleast 1200sats for fee+dust ouput chose 10k sats as DOS measure
+        // implicity requires tx.outputs[0].value > tx.inputs[0].value
+        require(amountPledge > 10000);
+        
+        // require this contract to be replicated on output index zero
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].TokenCategory == tx.inputs[0].TokenCategory);
+        
+        // enable there to be only three outputs so no additional NFTs can be minted
+        require(tx.outputs.length <= 3);
+        
+        // 2nd output contains refund NFT
+        // get the tokenCategory and remove the minting capability
+        bytes tokenCategory = tx.inputs[0].TokenCategory.split(64)[0];
+        require(tx.outputs[1].TokenCategory == tokenCategory + 0x00);
+        // require NFT commitment to be amount + refund-address
+        bytes pledgeCommitment = bytes8(amountPledge) + tx.inputs[1].lockingBytecode;
+        require(tx.outputs[1].tokenCommitment == pledgeCommitment);
+        // require the refund NFT can only be spent in certain ways
+        require(tx.outputs[1].lockingBytecode == cancelOrRefundLockingBytecode);
+        
+        // if there is a change output
+        if (tx.outputs.length == 3) {
+            // require that it does not mint any NFTs
+            require(tx.outputs[2].TokenCategory == 0);
+        }
+    }
+    function refund(
+    ) {
+        // require the campaign contract to be at index0
+        require(this.activeInputIndex == 0);
+        
+        // accept valid refund NFT as input
+        // validate by gettig checking the tokenCategory without capability
+    	bytes tokenCategory = tx.inputs[0].TokenCategory.split(64)[0];
+        require(tx.inputs[1].TokenCategory == tokenCategory + 0x00);
+        
+        // require this contract to be replicated on output index zero
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].TokenCategory == tx.inputs[0].TokenCategory);
+        
+        int amountRefund = tx.outputs[1].tokenCommitment.split(64)[0];
+        
+        // require this contract to be replicated on output index zero
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].TokenCategory == tx.inputs[0].TokenCategory);
+        // allow campaign balance to decrease with refund amount
+        require(tx.outputs[0].value == tx.inputs[0].value - amountRefund);
+        
+        // refund output on index 1 minus tx fee
+        require(tx.outputs.length == 2);
+        bytes refundLockingBytecode = tx.inputs[1].tokenCommitment.split(8)[1];
+        require(tx.outputs[1].lockingBytecode == refundLockingBytecode);
+        require(tx.outputs[1].value == amountRefund - 600);
+        // require that the refund NFT is burned
+        require(tx.outputs[1].TokenCategory == 0);
+    }
+}
