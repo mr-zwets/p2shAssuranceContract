@@ -46,7 +46,7 @@ contract assuranceContract(
         // 2nd output contains refund NFT
         // get the tokenCategory and remove the minting capability
         bytes tokenCategory = tx.inputs[0].TokenCategory.split(64)[0];
-        require(tx.outputs[1].TokenCategory == tokenCategory + 0x00);
+        require(tx.outputs[1].TokenCategory == tokenCategory);
         // require NFT commitment to be amount + refund-address
         bytes pledgeCommitment = bytes8(amountPledge) + tx.inputs[1].lockingBytecode;
         require(tx.outputs[1].tokenCommitment == pledgeCommitment);
@@ -67,17 +67,13 @@ contract assuranceContract(
         // accept valid refund NFT as input
         // validate by gettig checking the tokenCategory without capability
     	bytes tokenCategory = tx.inputs[0].TokenCategory.split(64)[0];
-        require(tx.inputs[1].TokenCategory == tokenCategory + 0x00);
+        require(tx.inputs[1].TokenCategory == tokenCategory);
+        int amountRefund = tx.inputs[1].tokenCommitment.split(16)[0];
         
         // require this contract to be replicated on output index zero
         require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
         require(tx.outputs[0].TokenCategory == tx.inputs[0].TokenCategory);
-        
-        int amountRefund = tx.outputs[1].tokenCommitment.split(64)[0];
-        
-        // require this contract to be replicated on output index zero
-        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
-        require(tx.outputs[0].TokenCategory == tx.inputs[0].TokenCategory);
+
         // allow campaign balance to decrease with refund amount
         require(tx.outputs[0].value == tx.inputs[0].value - amountRefund);
         
