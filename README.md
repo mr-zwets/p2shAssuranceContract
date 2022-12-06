@@ -11,7 +11,7 @@ Repo contains a version with and without stretch goals.
 
 ## V2
 
-Relies on the Cashtoken upgrade planned for May 2023.
+Uses the features of the Cashtoken upgrade which will activate May 2023 but are already usable on chipnet.
 Solves the limit on the number of contributors to a campaign and also allows for cancel-at-any-time.
 When the campaign expires and everybody has to be refunded this can be automated and does not require intervention from the user.
 Canceling the pledghe before this time does require action on the part of the user.

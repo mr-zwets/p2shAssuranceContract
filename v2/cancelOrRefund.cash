@@ -1,8 +1,10 @@
-// needs cashscript version with Cashtoken support
 pragma cashscript ^0.8.0;
 
 // Pledge receipt of smart contract flipstarter used to cancel or refund pledge
 // All the cancelOrRefund contracts for a given campaign share the same address but with different NFTs attached
+
+// Opcode count: 37 (max 201)
+// Bytesize: 56 (max 520)
 
 contract cancelOrRefund(
     int blockheightCampaignEnd
@@ -10,8 +12,8 @@ contract cancelOrRefund(
     function refund(
     ) {
         // can only be spent with campaign contract
-    	bytes tokenCategory = tx.inputs[1].TokenCategory.split(64)[0];
-        require(tx.inputs[0].TokenCategory == tokenCategory + 0x02);
+    	bytes categoryID = tx.inputs[1].tokenCategory.split(64)[0];
+        require(tx.inputs[0].tokenCategory == categoryID + 0x02);
 
         // require that the campaign expired
         require(tx.time >= blockheightCampaignEnd);
@@ -21,14 +23,14 @@ contract cancelOrRefund(
         sig pledgerSig
     ) {
         // can only be spent with campaign contract
-    	bytes tokenCategory = tx.inputs[1].TokenCategory.split(64)[0];
-        require(tx.inputs[0].TokenCategory == tokenCategory + 0x02);
+    	bytes categoryID = tx.inputs[1].tokenCategory.split(64)[0];
+        require(tx.inputs[0].tokenCategory == categoryID + 0x02);
 
         // so only the pledger himself can cancel before expiration
-        bytes refundLockingBytecode = tx.inputs[1].tokenCommitment.split(8)[1];
+        bytes refundLockingBytecode = tx.inputs[1].nftCommitment.split(8)[1];
         // parse the pkh from the lockingbytecode
         bytes pledgerPkh = refundLockingBytecode.split(3)[1].split(20)[0];
         require(hash160(pledgerPk) == pledgerPkh);
-        require(checksig(pledgerSig, pledgerPk));
+        require(checkSig(pledgerSig, pledgerPk));
     }
 }
